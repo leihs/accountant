@@ -141,24 +141,25 @@
         pairs (partition 2 (interleave params values))]
     (str/join "&" (map #(str/join "=" %) pairs))))
 
+(defn get-path [s]
+  (some-> s
+          (->> (.parse Uri))
+          (.getPath)))
+
 (defn navigate!
-  "add a browser history entry. updates window/location"
-  ([route] (navigate! route {}))
-  ([route query]
-   (if nav-handler
-     (let [token (.getToken history)
-           old-route (first (str/split token "?"))
-           query-string (map->params (reduce-kv (fn [valid k v]
-                                                  (if v
-                                                    (assoc valid k v)
-                                                    valid)) {} query))
-           with-params (if (empty? query-string)
-                         route
-                         (str route "?" query-string))]
-       (if (= old-route route)
-         (. history (replaceToken with-params))
-         (. history (setToken with-params))))
-     (js/console.error "can't navigate! until configure-navigation! called"))))
+  "adds the url to the history if and only if the path is different from the previous path,
+  otherwise replaces the previous entry with the new url; updates window/location at any rate"
+  ([path query-params] ; legacy/undocumented: accept path and query-params map with encoded values
+   (js/console.warn "DEPRECATION WARNING accountant.core: use (navigate! url) instead of (navigate! path query")
+   (if (empty? query-params)
+     (navigate! path)
+     (navigate! (str path (map->params query-params)))))
+  ([url]
+   (if-not nav-handler
+     (js/console.error "can't navigate! until configure-navigation! called")
+     (if (= (get-path url) (-> history .getToken get-path))
+       (. history (replaceToken url))
+       (. history (setToken url))))))
 
 (defn dispatch-current! []
   "Dispatch current URI path."
